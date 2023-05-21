@@ -6,9 +6,8 @@ import argparse
 
 # CONSTANTS
 OPENAI_TOKEN = None
-VERBOSE = True
 MODEL = "gpt-3.5-turbo"
-TEMPERATURE = 0.5
+TEMPERATURE = 1.0
 
 # FUNCTIONS
 def wrap_message(user, message):
@@ -28,7 +27,17 @@ def file_exists(filename):
     return os.path.isfile(filename)
 
 def create_system_message(filename):
-    desc = f"""You must produce a short python script which produces a plot from the file {filename} according to the user description. You must use matplotlib, and end the script with 'plt.show()'. Your code will not be seen by the user, only executed. Return code ONLY, no text."""
+    #desc = f"""You must produce a short python script which produces a plot from the file {filename} according to the user description. You must use matplotlib, and end the script with 'plt.show()'. Your code will not be seen by the user, only executed. Return code ONLY, no text."""
+    desc = f"""Complete the following program to produce a plot according to the user description. Return code ONLY, no text.
+
+import matplotlib.pyplot as plt
+import pandas as pd
+import numpy as np
+df = pd.read_csv('{filename}')
+
+# YOUR CODE HERE
+
+plt.show()"""
     return desc
 
 # INITIAL SETUP
@@ -65,19 +74,20 @@ if __name__ == "__main__":
 
     # System message
     system = create_system_message(filename)
-    system = wrap_message("system", system)
-    conversation.append(system)
+    wrapped_system = wrap_message("system", system)
+    conversation.append(wrapped_system)
 
     # Data description
     if data_description is not None:
-        data_description = wrap_message("user", f"Description of data: {data_description}")
-        conversation.append(data_description)
+        wrapped_data_description = wrap_message("user", f"Description of data: {data_description}")
+        conversation.append(wrapped_data_description)
 
     # User description
-    description = wrap_message("user", f"Desciption of plot: {description}")
-    conversation.append(description)
+    wrapped_description = wrap_message("user", f"Desciption of plot: {description}")
+    conversation.append(wrapped_description)
 
     if (verbose):
+        print(f"System: {system}")
         print(f"Filename: {filename}")
         print(f"Plot description: {description}")
         print(f"Data description: {data_description}")
@@ -89,7 +99,7 @@ if __name__ == "__main__":
     response = response.strip("```")
 
     if (verbose):
-        print(f"Plotting code: {response}")
+        print(f"Plotting code:\n\n{response}\n\n")
 
     exec(response)
 
