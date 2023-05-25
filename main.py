@@ -23,6 +23,9 @@ def conversation_api_call(messages):
     )
     return response
 
+def screen_print(prefix, message):
+    print(f"#{prefix}#:\n{message}\n")
+
 def file_exists(filename):
     return os.path.isfile(filename)
 
@@ -87,20 +90,30 @@ if __name__ == "__main__":
     conversation.append(wrapped_description)
 
     if (verbose):
-        print(f"System: {system}")
-        print(f"Filename: {filename}")
-        print(f"Plot description: {description}")
-        print(f"Data description: {data_description}")
+        screen_print("system", system)
+        screen_print("Filename", filename)
+        screen_print("Plot description", description)
+        screen_print("Data description", data_description)
+
 
     response_json = conversation_api_call(conversation)
     response = response_json["choices"][0]["message"]["content"]
 
-    response = response.strip("```python")
-    response = response.strip("```")
 
     if (verbose):
-        print(f"Plotting code:\n\n{response}\n\n")
+        screen_print("Plotting code", response)
 
-    exec(response)
+    sol_start = response.find("import matplotlib.pyplot as plt")
+    sol_end = response.find("plt.show()", sol_start+1)
+
+    if sol_start == -1 or sol_end == -1:
+        sys.exit("Could not find solution in response.")
+
+    trimmed_response = response[sol_start:sol_end+10]
+
+    if (verbose):
+        screen_print("Trimmed code", trimmed_response)
+
+    exec(trimmed_response)
 
 
