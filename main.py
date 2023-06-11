@@ -4,32 +4,11 @@ from dotenv import load_dotenv
 import os, sys
 import argparse
 
+# Local imports
+from prompts import *
+
 # CONSTANTS
 OPENAI_TOKEN = None
-VERBOSE = True
-MODEL = "gpt-3.5-turbo"
-TEMPERATURE = 0.5
-
-# FUNCTIONS
-def wrap_message(user, message):
-    if user not in ["system", "user", "assistant"]:
-        raise ValueError("user must be one of 'system', 'user', or 'assistant'")
-    return {"role": user, "content": message}
-
-def conversation_api_call(messages):
-    response = openai.ChatCompletion.create(
-        model=MODEL,
-        messages=messages,
-        temperature=TEMPERATURE,
-    )
-    return response
-
-def file_exists(filename):
-    return os.path.isfile(filename)
-
-def create_system_message(filename):
-    desc = f"""You must produce a short python script which produces a plot from the file {filename} according to the user description. You must use matplotlib, and end the script with 'plt.show()'. Your code will not be seen by the user, only executed. Return code ONLY, no text."""
-    return desc
 
 # INITIAL SETUP
 load_dotenv()
@@ -41,6 +20,59 @@ if OPENAI_TOKEN is None:
 
 openai.api_key = OPENAI_TOKEN
 
+def main(filename, description):
+    # INITIAL PLOT #
+    print("Creating initial plot")
+    code = initial_assistant(filename, description)
+    
+    # GET VERIFICATION #
+    verification_attempts = 1
+    while True:
+        print(f"Verifying plot attempt {verification_attempts}")
+        new_code = verification_assistant(filename, description, code)
+        if new_code == code:
+            print("Plot verified")
+            break
+
+        code = new_code
+        verification_attempts += 1
+
+        if verification_attempts > 3:
+            print("Plot cannot be verified")
+            break
+    
+    # RUN PLOT #
+    error = None
+    try:
+        exec(code)
+    except Exception as e:
+        error = str(e)
+    
+    error_attempts = 1
+    while error is not None:
+        print(f"Fixing plot attempt {error_attempts}")
+        new_code = error_assistant(filename, description, code, error)
+        code = new_code
+        try:
+            exec(code)
+            error = None
+        except Exception as e:
+            error = str(e)
+        
+        if error is None:
+            print("Plot fixed")
+            break
+    
+        error_attempts += 1
+        if error_attempts > 3:
+            print("Plot cannot be fixed")
+            break
+
+    if error is not None:
+        print("Code cannot be fixed")
+        return
+
+
 # MAIN FUNCTION
 if __name__ == "__main__":
 
@@ -50,47 +82,13 @@ if __name__ == "__main__":
                     epilog="Tom Kite 2023")
     parser.add_argument("filename", help="The filename of the data you want to plot", type=str, nargs=1)
     parser.add_argument("description", help="A description of the plot you want to create", type=str, nargs="+")
-    parser.add_argument("-d", "--data", help="A description of the data you want to plot", required=False, type=str, nargs="+", dest="data_description", default=None)
-    parser.add_argument("-v", "--verbose", help="Prints out extra information", action="store_true", dest="verbose")
+    #parser.add_argument("-v", "--verbose", help="Prints out extra information", action="store_true", dest="verbose")
 
     #args = sys.argv
     args = parser.parse_args(sys.argv[1:])
     filename = args.filename[0]
     description = " ".join(args.description)
-    data_description = " ".join(args.data_description) if args.data_description is not None else None
-    verbose = args.verbose
 
-    # Conversation object
-    conversation = []
-
-    # System message
-    system = create_system_message(filename)
-    system = wrap_message("system", system)
-    conversation.append(system)
-
-    # Data description
-    if data_description is not None:
-        data_description = wrap_message("user", f"Description of data: {data_description}")
-        conversation.append(data_description)
-
-    # User description
-    description = wrap_message("user", f"Desciption of plot: {description}")
-    conversation.append(description)
-
-    if (verbose):
-        print(f"Filename: {filename}")
-        print(f"Plot description: {description}")
-        print(f"Data description: {data_description}")
-
-    response_json = conversation_api_call(conversation)
-    response = response_json["choices"][0]["message"]["content"]
-
-    response = response.strip("```python")
-    response = response.strip("```")
-
-    if (verbose):
-        print(f"Plotting code: {response}")
-
-    exec(response)
+    main(filename, description)
 
 
